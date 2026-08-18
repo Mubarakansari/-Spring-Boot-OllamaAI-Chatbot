@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: chatbot
+
+  # ---- Database (Postgres only) ----
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:chatbot}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USER:chatbot}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      # Flyway (below) owns schema changes; Hibernate only validates
+      # that entities match what the migrations created.
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  # ---- Redis ----
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+server:
+  port: 8011
+
+# ---- Local Ollama config ----
+claude:
+  base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  model: ${CLAUDE_MODEL:llama3.2}
+  max-tokens: ${CLAUDE_MAX_TOKENS:1024}
+  temperature: ${CLAUDE_TEMPERATURE:1.0}
+  request-timeout-seconds: ${CLAUDE_TIMEOUT:60}
+  max-history-messages: ${CLAUDE_MAX_HISTORY:20}
+
+# ---- JWT config ----
+jwt:
+  secret: ${JWT_SECRET:change-this-to-a-long-random-secret-in-production-min-256-bits}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}   # 24h
+
+# ---- Rate limiting ----
+ratelimit:
+  requests-per-minute: ${RATE_LIMIT_RPM:20}
+
+# ---- RAG (Retrieval-Augmented Generation) ----
+rag:
+  enabled: ${RAG_ENABLED:false}
+  voyage-api-key: ${VOYAGE_API_KEY:}
+  embedding-model: ${VOYAGE_EMBEDDING_MODEL:voyage-3-large}
+  embedding-dimension: ${VOYAGE_EMBEDDING_DIMENSION:1024}
+  chunk-size-chars: ${RAG_CHUNK_SIZE:1500}
+  chunk-overlap-chars: ${RAG_CHUNK_OVERLAP:200}
+  top-k: ${RAG_TOP_K:5}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.example.chatbot: INFO
+    org.springframework.security: WARN

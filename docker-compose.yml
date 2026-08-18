@@ -1,0 +1,90 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    ports:
+      - "8011:8011"
+    environment:
+      # host.docker.internal reaches the host machine's Ollama server from
+      # inside the container (Docker Desktop on Windows/Mac provides this
+      # out of the box). Override if Ollama runs elsewhere.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-llama3.2}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: chatbot
+      DB_USER: chatbot
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - min 32 chars}
+      RAG_ENABLED: ${RAG_ENABLED:-false}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      VOYAGE_EMBEDDING_MODEL: ${VOYAGE_EMBEDDING_MODEL:-voyage-3-large}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ai-chatbot
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: chatbot_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: chatbot
+      POSTGRES_USER: chatbot
+      POSTGRES_PASSWORD: chatbot
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U chatbot" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ai-chatbot
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: chatbot_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5051:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - ai-chatbot
+
+  redis:
+    image: redis:7-alpine
+    container_name: chatbot_redis
+    restart: always
+    ports:
+      - "6381:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ai-chatbot
+
+networks:
+  ai-chatbot:
+    driver: bridge
+
+volumes:
+  pgdata:
+  pgadmin_data:

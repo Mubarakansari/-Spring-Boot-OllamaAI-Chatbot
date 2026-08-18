@@ -1,0 +1,94 @@
+### Chatbot API requests
+### Works with the VS Code "REST Client" extension or JetBrains' built-in HTTP Client.
+### After login/register, copy the returned "token" into @token below to authorize the rest.
+
+@baseUrl = http://localhost:8011
+@token = eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJhNTY1YTQ3My02ZDhhLTRmMTMtOWU5My1lYWVkYzhmYTYzM2EiLCJlbWFpbCI6InlvdUBleGFtcGxlLmNvbSIsImlhdCI6MTc4NjcwNzgxMiwiZXhwIjoxNzg2Nzk0MjEyfQ.U9vBI4tqSK2XbR_-QHPPDTZJaA3DxottrviKHZJMXWLg1nVO9ADXruj9AiMZhQtz
+
+### Health check
+GET {{baseUrl}}/actuator/health
+
+
+### Register a new user
+# Body fields are "email" and "password" (there is no separate username field).
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "you@example.com",
+  "password": "password123"
+}
+
+
+### Login (returns { token, tokenType, expiresInSeconds })
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "you@example.com",
+  "password": "password123"
+}
+
+
+### Send a chat message (starts a new conversation)
+POST {{baseUrl}}/api/chat
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "message": "give me video generate ai names"
+}
+
+
+### Send a chat message into an existing conversation
+POST {{baseUrl}}/api/chat
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "message": "Tell me more about that.",
+  "conversationId": "paste-conversation-id-here"
+}
+
+
+### Send a chat message with streaming (Server-Sent Events)
+POST {{baseUrl}}/api/chat/stream
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "message": "Stream a short poem about the ocean."
+}
+
+
+### List the current user's conversations
+GET {{baseUrl}}/api/chat/conversations
+Authorization: Bearer {{token}}
+
+
+### Get one conversation's full message history
+GET {{baseUrl}}/api/chat/conversations/paste-conversation-id-here
+Authorization: Bearer {{token}}
+
+
+### Upload a document for RAG (requires RAG_ENABLED=true and the postgres profile)
+POST {{baseUrl}}/api/documents
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="handbook.pdf"
+Content-Type: application/pdf
+
+< ./handbook.pdf
+--boundary--
+
+
+### List uploaded documents
+GET {{baseUrl}}/api/documents
+Authorization: Bearer {{token}}
+
+
+### Delete a document
+DELETE {{baseUrl}}/api/documents/paste-document-id-here
+Authorization: Bearer {{token}}
