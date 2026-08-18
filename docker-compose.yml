@@ -81,6 +81,37 @@ services:
     networks:
       - ai-chatbot
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: chatbot_prometheus
+    restart: always
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
+    networks:
+      - ai-chatbot
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: chatbot_grafana
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - ai-chatbot
+
 networks:
   ai-chatbot:
     driver: bridge
@@ -88,3 +119,5 @@ networks:
 volumes:
   pgdata:
   pgadmin_data:
+  prometheus_data:
+  grafana_data:

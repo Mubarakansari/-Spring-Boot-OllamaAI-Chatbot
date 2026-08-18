@@ -55,7 +55,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("http://localhost:8011", "/api/auth/**", "/actuator/health", "/actuator/info")
+                        .requestMatchers("http://localhost:8011", "/api/auth/**", "/actuator/health", "/actuator/info", "/actuator/prometheus")
                         .permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
