@@ -100,9 +100,8 @@ users (id, email UNIQUE, password_hash, created_at, updated_at)
 conversations (id, user_id FK, title, created_at, updated_at)
 messages (id, conversation_id FK, role[USER|ASSISTANT|SYSTEM], content, input_tokens, output_tokens, created_at)
 
--- RAG (postgres profile only, see §11)
+-- RAG (see §11) - document metadata only; chunk content + vectors live in Astra DB
 documents (id, user_id FK, filename, status[PROCESSING|READY|FAILED], chunk_count, created_at)
-document_chunks (id, document_id FK, user_id FK, content, chunk_index, embedding vector(1024), created_at)
 ```
 
 One conversation → many messages. One user → many conversations. Every query is
@@ -211,7 +210,7 @@ This starts the app + Postgres + Redis together, wired via environment variables
 1. Put the app behind a reverse proxy (nginx/Caddy/ALB) terminating HTTPS.
 2. Run Postgres and Redis as managed services (RDS/Cloud SQL, ElastiCache/Memorystore)
    rather than in the same compose file, for durability and backups.
-3. Inject secrets (`JWT_SECRET`, DB password, `VOYAGE_API_KEY` if RAG is on) via your
+3. Inject secrets (`JWT_SECRET`, DB password, `ASTRA_DB_TOKEN` if RAG is on) via your
    platform's secret manager, not `.env` files, in real production. Point
    `OLLAMA_BASE_URL` at wherever your production Ollama (or Ollama-compatible) server runs.
 4. Enable `management.endpoint.health.show-details: when-authorized` (already set) and
@@ -224,56 +223,54 @@ This starts the app + Postgres + Redis together, wired via environment variables
 ## 11. RAG (Retrieval-Augmented Generation) — implemented
 
 Upload documents; the chatbot retrieves relevant excerpts and grounds its answers in
-them, instead of relying only on Claude's training data.
+them, instead of relying only on the model's training data.
 
-**Why Voyage AI:** Anthropic does not offer its own embedding model and officially
-recommends [Voyage AI](https://www.voyageai.com) as the pairing for Claude-based RAG.
-`voyage-3-large` is the current strongest general-purpose model; use
-`voyage-multilingual-2` for non-English content. Get a key at
-https://dashboard.voyageai.com.
-
-**Why pgvector:** keeps vectors next to your existing business data (one database,
-one auth model, ordinary SQL joins), rather than standing up a separate vector store.
-The `pgvector/pgvector` Docker image ships the extension pre-installed; most managed
-Postgres providers (RDS 15.2+, Aurora, Supabase, Neon) support `CREATE EXTENSION vector`
-directly.
+**Why Astra DB:** a managed vector store ([astra.datastax.com](https://astra.datastax.com))
+with built-in server-side embedding ("$vectorize") — you send raw chunk text and query
+text, Astra embeds both itself, so the app needs no separate embeddings API client or
+key. The free-tier default model (`nvidia/NV-Embed-QA`, 1024 dimensions) needs no extra
+account/API key at all; swap `ASTRA_EMBEDDING_PROVIDER`/`ASTRA_EMBEDDING_MODEL` in `.env`
+for a different one if you want.
 
 ### How it works
 
 ```
 Upload:  file -> extract text (PDFBox for .pdf) -> chunk (1500 chars, 200 overlap)
-              -> embed chunks in one batched Voyage call -> store in document_chunks
+              -> insertMany into an Astra collection; each chunk's text is embedded
+                 server-side via $vectorize (one batched call per document)
 
-Chat:    user message -> embed the message (Voyage, input_type=query)
-              -> pgvector cosine search, top-K, scoped to that user's documents
+Chat:    user message -> Sort.vectorize(message) - Astra embeds the query server-side
+              -> cosine-similarity search, top-K, scoped to that user's documents
               -> relevant excerpts prepended to the system prompt
-              -> sent to Claude alongside the normal conversation history
+              -> sent to the model alongside the normal conversation history
 ```
 
 See `com.example.chatbot.rag`:
-- `VoyageEmbeddingClient` — isolated embeddings client, same pattern as `ClaudeService`
+- `AstraChunkStore` — the only class that talks to Astra; connects lazily on first
+  use, auto-creates the `document_chunks` collection (vectorize + cosine similarity)
+  if it doesn't exist yet
 - `DocumentChunker` — text extraction + sliding-window chunking
-- `DocumentIngestionService` — upload -> chunk -> embed -> store pipeline
-- `VectorSearchRepository` — raw JDBC for the `vector(1024)` column and `<=>` cosine search
-  (deliberately not a JPA field mapping — see the class comment for why)
-- `RetrievalService` — embeds the query and builds the context block; `ChatService`
-  calls this once per turn when RAG is enabled
+- `DocumentIngestionService` — upload -> chunk -> store pipeline
+- `RetrievalService` — builds the context block; `ChatService` calls this once per
+  turn when RAG is enabled
+
+Document *metadata* (filename, status, chunk count) stays in Postgres via the
+`documents` table/`DocumentRepository`, tied to `users` via a normal FK — only chunk
+content + vectors live in Astra.
 
 ### Enabling it
 
-RAG requires the pgvector extension, which the `postgres` service in `docker-compose.yml`
-already provides:
-
 ```bash
 export RAG_ENABLED=true
-export VOYAGE_API_KEY=pa-your-key-here
-export DB_PASSWORD=...   # etc, see .env
-docker compose up -d postgres redis   # or run Postgres yourself with pgvector
+export ASTRA_DB_ID=your-database-id
+export ASTRA_DB_TOKEN=AstraCS:...
+export ASTRA_DB_REGION=us-east-2
+export ASTRA_DB_KEYSPACE=your-keyspace   # must already exist in the Astra portal
 mvn spring-boot:run
 ```
 
-Or via `docker compose up --build` with `RAG_ENABLED=true` and `VOYAGE_API_KEY` set
-in your `.env` — `docker-compose.yml` already uses the `pgvector/pgvector:pg16` image.
+Or via `docker compose up --build` with the same `ASTRA_*` variables set in your `.env`
+(already wired into `docker-compose.yml`'s `app` service).
 
 ```bash
 # Upload a document
@@ -297,14 +294,12 @@ curl -X POST localhost:8011/api/chat \
   For large files or high upload volume, move it behind `@Async` or a real job queue
   and let the client poll `Document.status` (`PROCESSING` → `READY`/`FAILED`), which
   the schema already supports.
-- **Index tuning**: the `ivfflat` index (`V2__rag_pgvector.sql`) needs data to train
-  well and its `lists` parameter should scale roughly with `sqrt(row_count)` — revisit
-  once your corpus is real-sized. For small corpora, an exact scan (no index) is fine.
 - **Reranking**: for higher retrieval precision at added cost/latency, add a reranking
-  pass (e.g. `voyage-rerank-2` or a Claude Haiku rerank call) between the top-K vector
-  search and what actually gets injected into the prompt.
-- **Cost**: embeddings are billed separately from Claude generation — batch embedding
-  calls (already done here, one call per document) rather than one call per chunk.
+  pass (Astra supports `findAndRerank` natively) between the top-K vector search and
+  what actually gets injected into the prompt.
+- **Keyspace**: `AstraChunkStore` auto-creates both the keyspace (`ASTRA_DB_KEYSPACE`)
+  and the `document_chunks` collection inside it on first use if they don't exist yet -
+  no manual setup needed in the Astra portal.
 
 ---
 
@@ -331,11 +326,11 @@ com.example.chatbot
 ├── controller      # AuthController, ChatController, DocumentController
 ├── service         # ChatService, AuthService
 ├── claude          # ClaudeConfig, ClaudeProperties, ClaudeService, PromptService
-├── rag             # VoyageEmbeddingClient, DocumentChunker, DocumentIngestionService,
-│                   # VectorSearchRepository, RetrievalService, RagProperties
-├── entity          # User, Conversation, Message, Role, Document, DocumentChunk
+├── rag             # AstraChunkStore, DocumentChunker, DocumentIngestionService,
+│                   # RetrievalService, RagProperties
+├── entity          # User, Conversation, Message, Role, Document
 ├── repository      # UserRepository, ConversationRepository, MessageRepository,
-│                   # DocumentRepository, DocumentChunkRepository
+│                   # DocumentRepository
 ├── dto             # ChatDtos, AuthDtos, DocumentDtos
 ├── security        # JwtUtil, JwtAuthFilter, AppUserPrincipal, AppUserDetailsService
 ├── config          # SecurityConfig, RedisConfig, RateLimiter

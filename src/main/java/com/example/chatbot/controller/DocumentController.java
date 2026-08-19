@@ -19,7 +19,7 @@ public class DocumentController {
 
     private final DocumentIngestionService ingestionService;
 
-    /** POST /api/documents - upload a .txt/.md/.pdf file to be embedded and made searchable via RAG. */
+    /** POST /api/documents - upload a .txt/.md/.pdf/.xlsx/.xls file to be embedded and made searchable via RAG. */
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<DocumentView> upload(@AuthenticationPrincipal AppUserPrincipal principal,
                                                 @RequestParam("file") MultipartFile file) throws Exception {

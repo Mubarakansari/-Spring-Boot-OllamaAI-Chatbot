@@ -32,7 +32,7 @@ class ChatServiceTest {
     @Mock private MessageRepository messageRepository;
     @Mock private ClaudeService claudeService; // mocked - no real Claude API calls, no credits used
     @Mock private PromptService promptService;
-    @Mock private RetrievalService retrievalService; // RAG mocked off - no Voyage calls in unit tests
+    @Mock private RetrievalService retrievalService; // RAG mocked off - no Astra calls in unit tests
     private ClaudeProperties claudeProperties = new ClaudeProperties("test-key", "claude-sonnet-5", 1024, 1.0, 60, 20);
 
     private ChatService chatService;

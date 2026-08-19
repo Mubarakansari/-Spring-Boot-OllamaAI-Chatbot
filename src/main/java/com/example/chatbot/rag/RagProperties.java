@@ -4,8 +4,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "rag")
 public record RagProperties(
-        String voyageApiKey,
-        String embeddingModel,      // e.g. voyage-3-large
+        String astraDatabaseId,
+        String astraToken,
+        String astraRegion,
+        String astraKeyspace,
+        String embeddingProvider,   // e.g. nvidia - free, no separate API key needed
+        String embeddingModel,      // e.g. NV-Embed-QA
         int embeddingDimension,     // e.g. 1024
         int chunkSizeChars,         // approx chars per chunk
         int chunkOverlapChars,

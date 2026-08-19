@@ -12,8 +12,7 @@ import java.util.UUID;
 @EnableConfigurationProperties(RagProperties.class)
 public class RetrievalService {
 
-    private final VoyageEmbeddingClient embeddingClient;
-    private final VectorSearchRepository vectorSearchRepository;
+    private final AstraChunkStore chunkStore;
     private final RagProperties ragProperties;
 
     public boolean isEnabled() {
@@ -29,9 +28,8 @@ public class RetrievalService {
     public String retrieveContextBlock(UUID userId, String userMessage) {
         if (!ragProperties.enabled()) return null;
 
-        float[] queryEmbedding = embeddingClient.embedQuery(userMessage);
-        List<VectorSearchRepository.ChunkMatch> matches =
-                vectorSearchRepository.searchTopK(userId, queryEmbedding, ragProperties.topK());
+        List<AstraChunkStore.ChunkMatch> matches =
+                chunkStore.searchTopK(userId, userMessage, ragProperties.topK());
 
         if (matches.isEmpty()) return null;
 
@@ -40,7 +38,7 @@ public class RetrievalService {
         sb.append("Use them to answer if relevant; ignore them if not, and never claim information ");
         sb.append("from them that isn't actually there.\n\n");
 
-        for (VectorSearchRepository.ChunkMatch m : matches) {
+        for (AstraChunkStore.ChunkMatch m : matches) {
             sb.append("---\nSource: ").append(m.filename()).append("\n");
             sb.append(m.content()).append("\n");
         }

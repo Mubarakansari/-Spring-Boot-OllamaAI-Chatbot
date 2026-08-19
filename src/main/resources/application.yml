@@ -29,6 +29,13 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
 
+  # ---- File uploads (RAG documents) ----
+  # Boot's own default is 1MB, too small for real documents.
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_SIZE:10MB}
+      max-request-size: ${MAX_UPLOAD_SIZE:10MB}
+
 server:
   port: 8011
 
@@ -50,14 +57,22 @@ jwt:
 ratelimit:
   requests-per-minute: ${RATE_LIMIT_RPM:20}
 
-# ---- RAG (Retrieval-Augmented Generation) ----
+# ---- RAG (Retrieval-Augmented Generation) - Astra DB vector store ----
 rag:
   enabled: ${RAG_ENABLED:false}
-  voyage-api-key: ${VOYAGE_API_KEY:}
-  embedding-model: ${VOYAGE_EMBEDDING_MODEL:voyage-3-large}
-  embedding-dimension: ${VOYAGE_EMBEDDING_DIMENSION:1024}
-  chunk-size-chars: ${RAG_CHUNK_SIZE:1500}
-  chunk-overlap-chars: ${RAG_CHUNK_OVERLAP:200}
+  astra-database-id: ${ASTRA_DB_ID:}
+  astra-token: ${ASTRA_DB_TOKEN:}
+  astra-region: ${ASTRA_DB_REGION:}
+  astra-keyspace: ${ASTRA_DB_KEYSPACE:default_keyspace}
+  embedding-provider: ${ASTRA_EMBEDDING_PROVIDER:nvidia}
+  embedding-model: ${ASTRA_EMBEDDING_MODEL:NV-Embed-QA}
+  embedding-dimension: ${ASTRA_EMBEDDING_DIMENSION:1024}
+  # 900 chars keeps even dense, numbers-heavy text (tax forms, financial
+  # statements) safely under NV-Embed-QA's hard 512-token input limit -
+  # 1500 was verified (via direct Data API calls) to exceed it on real
+  # ITR2-style content, which rejected the whole chunk.
+  chunk-size-chars: ${RAG_CHUNK_SIZE:900}
+  chunk-overlap-chars: ${RAG_CHUNK_OVERLAP:150}
   top-k: ${RAG_TOP_K:5}
 
 management:

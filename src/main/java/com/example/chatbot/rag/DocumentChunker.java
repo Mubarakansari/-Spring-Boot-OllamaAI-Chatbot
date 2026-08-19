@@ -3,9 +3,16 @@ package com.example.chatbot.rag;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -14,7 +21,11 @@ import java.util.List;
 @Component
 public class DocumentChunker {
 
-    /** Extracts plain text from an uploaded file. Supports .txt/.md natively and .pdf via PDFBox. */
+    /**
+     * Extracts plain text from an uploaded file. Supports .txt/.md natively,
+     * .pdf via PDFBox, and .xlsx/.xls via Apache POI (cell values, sheet by
+     * sheet, tab-separated within a row so column structure survives chunking).
+     */
     public String extractText(MultipartFile file) throws IOException {
         String filename = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
 
@@ -23,8 +34,31 @@ public class DocumentChunker {
                 return new PDFTextStripper().getText(doc);
             }
         }
+        if (filename.endsWith(".xlsx") || filename.endsWith(".xls")) {
+            return extractExcelText(file);
+        }
         // .txt, .md, or anything else - treat as plain UTF-8 text
         return new String(file.getBytes(), StandardCharsets.UTF_8);
+    }
+
+    private String extractExcelText(MultipartFile file) throws IOException {
+        try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(file.getBytes()))) {
+            DataFormatter formatter = new DataFormatter();
+            StringBuilder sb = new StringBuilder();
+            for (Sheet sheet : workbook) {
+                sb.append(sheet.getSheetName()).append('\n');
+                for (Row row : sheet) {
+                    for (Cell cell : row) {
+                        String value = formatter.formatCellValue(cell);
+                        if (!value.isBlank()) {
+                            sb.append(value).append('\t');
+                        }
+                    }
+                    sb.append('\n');
+                }
+            }
+            return sb.toString();
+        }
     }
 
     /**

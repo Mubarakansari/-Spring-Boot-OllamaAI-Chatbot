@@ -3,7 +3,7 @@
 ### After login/register, copy the returned "token" into @token below to authorize the rest.
 
 @baseUrl = http://localhost:8011
-@token = eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJhNTY1YTQ3My02ZDhhLTRmMTMtOWU5My1lYWVkYzhmYTYzM2EiLCJlbWFpbCI6InlvdUBleGFtcGxlLmNvbSIsImlhdCI6MTc4NzAzNjkwMSwiZXhwIjoxNzg3MTIzMzAxfQ.D-17SfkxzhkM04UfKWt69FQP2FJalKYnPOjTEjAdDAXDjq0S2OZmVwram6AxBkw1
+@token = eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiI4NGFkYTMxYy0zMjZjLTQ5ZmEtYmRhZC1jYTg2ZDczYjk1ZjIiLCJlbWFpbCI6InlvdUBleGFtcGxlLmNvbSIsImlhdCI6MTc4NzA1MTMxOSwiZXhwIjoxNzg3MTM3NzE5fQ.YivE4YoZS3Oo9SAmvKqVa_DmmUB9ogA33kDWJb0Ycgeaw-UJFu2iZ8-S7ORZgXR1
 
 ### Health check
 GET {{baseUrl}}/actuator/health

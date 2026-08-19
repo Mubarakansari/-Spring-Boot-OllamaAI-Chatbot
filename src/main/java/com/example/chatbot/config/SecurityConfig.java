@@ -49,13 +49,13 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http: // localhost:8011/api/auth/register
         http
                 .csrf(csrf -> csrf.disable()) // stateless JWT API, not cookie-based
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("http://localhost:8011", "/api/auth/**", "/actuator/health", "/actuator/info", "/actuator/prometheus")
+                        .requestMatchers("/", "/index.html", "/favicon.ico", "/api/auth/**",
+                                "/actuator/health", "/actuator/info", "/actuator/prometheus")
                         .permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
