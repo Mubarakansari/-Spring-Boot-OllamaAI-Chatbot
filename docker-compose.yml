@@ -8,8 +8,11 @@ services:
     environment:
       # host.docker.internal reaches the host machine's Ollama server from
       # inside the container (Docker Desktop on Windows/Mac provides this
-      # out of the box). Override if Ollama runs elsewhere.
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # out of the box). Hardcoded, not ${OLLAMA_BASE_URL:-...}: Compose
+      # auto-loads .env, which sets OLLAMA_BASE_URL=http://localhost:11434
+      # for local (non-Docker) runs - that would silently win over this
+      # fallback and break connectivity from inside the container.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
       CLAUDE_MODEL: ${CLAUDE_MODEL:-llama3.2}
       DB_HOST: postgres
       DB_PORT: 5432

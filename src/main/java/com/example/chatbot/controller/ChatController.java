@@ -77,10 +77,19 @@ public class ChatController {
                                 emitter.send(SseEmitter.event().name("error").data(error.getMessage()));
                             } catch (Exception ignored) {
                             }
-                            emitter.completeWithError(error);
+                            // complete(), not completeWithError(): the client was already told via
+                            // the "error" SSE event above. completeWithError() would instead make
+                            // Spring re-dispatch this exception through the normal @ExceptionHandler
+                            // resolution chain, which tries to write a JSON body onto a response
+                            // already committed to text/event-stream and blows up.
+                            emitter.complete();
                         });
             } catch (Exception e) {
-                emitter.completeWithError(e);
+                try {
+                    emitter.send(SseEmitter.event().name("error").data(e.getMessage()));
+                } catch (Exception ignored) {
+                }
+                emitter.complete();
             }
         });
 
